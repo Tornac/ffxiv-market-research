@@ -1,14 +1,13 @@
+import json
 import pathlib
-import sys
 import time
 from dataclasses import dataclass
-from typing import List
 from datetime import datetime
+from functools import lru_cache
+from typing import List
 
 import pandas as pandas
 import requests
-import json
-from functools import lru_cache
 
 
 @dataclass
@@ -40,8 +39,10 @@ def get_unit_price(name: str) -> Item:
     res = requests.get(url)
     res.raise_for_status()
     prices = json.loads(res.text)["History"]
-    nqs = sorted(price["PricePerUnit"] for price in prices if not price["IsHQ"] and listing_is_recent(price))
-    hqs = sorted(price["PricePerUnit"] for price in prices if price["IsHQ"] and listing_is_recent(price))
+    nqs = sorted(
+        price["PricePerUnit"] for price in prices if not price["IsHQ"] and listing_is_recent(price))
+    hqs = sorted(
+        price["PricePerUnit"] for price in prices if price["IsHQ"] and listing_is_recent(price))
     return Item(
         id=item_id,
         name=name,
@@ -90,40 +91,38 @@ def check_category(category: Category):
             print(f"progress: {i + 1} / {len(names)}")
     df = pandas.DataFrame(columns=["Name", "NQ Price", "HQ Price"])
     for item in sorted(items, key=lambda i: i.nq, reverse=True):
-        df = df.append({"Name": item.name, "NQ Price": item.nq, "HQ Price": item.hq}, ignore_index=True)
-    return df, errors
-
-
-def lpad(number: int, highest: int):
-    width = len(str(highest))
-    return str(number).rjust(width, " ")
-
-
-def main():
-    categories = [Category(f) for f in (pathlib.Path(__file__).parent / "categories").iterdir()]
-    for i, c in enumerate(categories):
-        print(f"[ {lpad(i, len(categories) - 1)} ] - {c.name}")
-    choice = -1
-    while choice < 0 or choice >= len(categories):
-        try:
-            choice = int(input("choose a list to check: "))
-        except ValueError:
-            pass
-    category = categories[choice]
-    items, errors = check_category(category)
+        df = df.append({"Name": item.name, "NQ Price": item.nq, "HQ Price": item.hq},
+                       ignore_index=True)
 
     output = f"category: {category.name}\n"
     output += f"last update: {datetime.now()}\n"
-    output += "\n" + str(items) + "\n"
+    output += "\n" + str(df) + "\n"
     if errors:
         output += "\nerrors for item names:\n"
         for error in errors:
             output += "    " + error + "\n"
     print(output)
-    outdir = pathlib.Path(__file__).parent / "results"
-    outdir.mkdir()
+    outdir: pathlib.Path = pathlib.Path(__file__).parent / "results"
+    outdir.mkdir(parents=True, exist_ok=True)
     with (outdir / category.name).open("w") as f:
         f.write(output)
+
+
+def main():
+    categories = [Category(f) for f in (pathlib.Path(__file__).parent / "categories").iterdir()]
+    for i, c in enumerate(categories):
+        print(f"[ {str(i).rjust(3, ' ')} ] - {c.name}")
+    print("[ all ] - will go through every category")
+    choice = -1
+    while choice < 0 or choice >= len(categories):
+        choice = input("choose a list to check: ")
+        try:
+            categories = categories[int(choice)]
+        except ValueError:
+            if choice == "all":
+                break
+    for c in categories:
+        check_category(c)
 
 
 if __name__ == '__main__':
