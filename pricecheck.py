@@ -3,11 +3,12 @@ import pathlib
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from functools import lru_cache
 from typing import List
 
 import pandas as pandas
 import requests
+
+from cache import IdCache
 
 
 @dataclass
@@ -33,21 +34,19 @@ def listing_is_recent(listing: dict):
     return td.total_seconds() < one_day
 
 
-def get_unit_price(name: str) -> Item:
-    item_id = get_id_by_name(name)
+def get_unit_price(name: str, id_cache: IdCache) -> Item:
+    item_id = id_cache.get(name)
     url = f"https://xivapi.com/market/Lich/item/{item_id}"
     res = requests.get(url)
     res.raise_for_status()
-    prices = json.loads(res.text)["History"]
-    nqs = sorted(
-        price["PricePerUnit"] for price in prices if not price["IsHQ"] and listing_is_recent(price))
-    hqs = sorted(
-        price["PricePerUnit"] for price in prices if price["IsHQ"] and listing_is_recent(price))
+    history = [entry for entry in json.loads(res.text)["History"] if listing_is_recent(entry)]
+    nq_history = sorted(entry["PricePerUnit"] for entry in history if not entry["IsHQ"])
+    hq_history = sorted(entry["PricePerUnit"] for entry in history if entry["IsHQ"])
     return Item(
         id=item_id,
         name=name,
-        nq=avg(nqs[:10]),
-        hq=avg(hqs[:10])
+        nq=avg(nq_history[:10]),
+        hq=avg(hq_history[:10])
     )
 
 
@@ -57,20 +56,7 @@ def avg(xs: list):
     return round(sum(xs) / len(xs))
 
 
-@lru_cache(maxsize=None)
-def get_id_by_name(name: str):
-    url = "https://xivapi.com/search"
-    res = requests.get(url, {
-        "string": name,
-        "string_algo": "match"
-    })
-    res.raise_for_status()
-    data = json.loads(res.text)["Results"][0]
-    assert name == data["Name"]
-    return data["ID"]
-
-
-def check_category(category: Category):
+def check_category(category: Category, id_cache: IdCache):
     items: List[Item] = []
     names = []
     with category.path.open() as file:
@@ -83,7 +69,7 @@ def check_category(category: Category):
     for i, name in enumerate(names):
         try:
             time.sleep(0.1)
-            item = get_unit_price(name)
+            item = get_unit_price(name, id_cache)
             items.append(item)
         except:
             errors.append(name)
@@ -108,22 +94,23 @@ def check_category(category: Category):
         f.write(output)
 
 
-def main():
+def main(id_cache: IdCache):
     categories = [Category(f) for f in (pathlib.Path(__file__).parent / "categories").iterdir()]
     for i, c in enumerate(categories):
         print(f"[ {str(i).rjust(3, ' ')} ] - {c.name}")
     print("[ all ] - will go through every category")
-    choice = -1
-    while choice < 0 or choice >= len(categories):
+    while True:
         choice = input("choose a list to check: ")
         try:
-            categories = categories[int(choice)]
+            categories = [categories[int(choice)]]
+            break
         except ValueError:
             if choice == "all":
                 break
     for c in categories:
-        check_category(c)
+        check_category(c, id_cache)
 
 
 if __name__ == '__main__':
-    main()
+    with IdCache() as cache:
+        main(cache)
