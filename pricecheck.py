@@ -31,7 +31,7 @@ class Category:
 def listing_is_recent(listing: dict):
     td = datetime.now() - datetime.fromtimestamp(listing["PurchaseDate"])
     one_day = 60 * 60 * 24
-    return td.total_seconds() < one_day
+    return td.total_seconds() < one_day * 1.33
 
 
 def get_unit_price(name: str, id_cache: IdCache) -> Item:
