@@ -1,6 +1,7 @@
 import json
 import pathlib
 import time
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List
@@ -73,6 +74,7 @@ def check_category(category: Category, id_cache: IdCache):
             items.append(item)
         except:
             errors.append(name)
+            report_error(name)
         finally:
             print(f"progress: {i + 1} / {len(names)}")
     df = pandas.DataFrame(columns=["Name", "NQ Price", "HQ Price"])
@@ -92,6 +94,15 @@ def check_category(category: Category, id_cache: IdCache):
     outdir.mkdir(parents=True, exist_ok=True)
     with (outdir / category.name).open("w") as f:
         f.write(output)
+
+
+def report_error(item_name: str, timestamp=str(round(time.time()))):
+    directory: pathlib.Path = pathlib.Path(__file__).parent / "errors"
+    directory.mkdir(exist_ok=True)
+    with (directory / timestamp).open("a") as f:
+        f.write(f"item: {item_name}\n\n")
+        f.write(traceback.format_exc())
+        f.write("\n-----------------\n\n")
 
 
 def main(id_cache: IdCache):
