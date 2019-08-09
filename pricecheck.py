@@ -123,5 +123,9 @@ def main(id_cache: IdCache):
 
 
 if __name__ == '__main__':
+    msg1 = "xivapi has shut down their market endpoint"
+    msg2 = "this script is effectively useless as of august 10th 2019"
+    highlight = "=" * max(map(len, [msg1, msg2]))
+    print(highlight, msg1, msg2, highlight, sep="\n")
     with IdCache() as cache:
         main(cache)
